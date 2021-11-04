@@ -9,17 +9,22 @@ import (
 	"path/filepath"
 )
 
+// command is a fundamental unit that is some string that can be run in a shell along with
+// additional metadata.
 type command struct {
 	Invocation  string `json:"i"`
 	Description string `json:"d"`
 }
 
+// state is made up primarily of a set of commands. A state is the module that is stored persistently
+// and can be shared.
 type state struct {
 	home     bool
 	path     string
 	Commands []*command `json:"c"`
 }
 
+// Container encapsulates the various states loaded.
 type Container struct {
 	states []*state
 }
@@ -59,6 +64,8 @@ func Init() (*Container, error) {
 // Load loads the speeddial state at the given path into the provided container, creating a new one
 // if one does not exist.
 func (c *Container) Load(path string) error {
+	path = filepath.Clean(path)
+
 	_, err := os.Stat(path)
 	if errors.Is(err, os.ErrNotExist) {
 		if err := initFile(path); err != nil {
@@ -85,6 +92,7 @@ func (c *Container) Load(path string) error {
 	return nil
 }
 
+// Dump stores the contents of every state to disk.
 func (c *Container) Dump() {
 	for _, s := range c.states {
 		f, err := os.Create(s.path)
@@ -94,26 +102,28 @@ func (c *Container) Dump() {
 		}
 		defer f.Close()
 
-		if err := json.NewEncoder(f).Encode(&s); err != nil {
+		if err := json.NewEncoder(f).Encode(s); err != nil {
 			fmt.Printf("Unable to dump the state at %s: %v\n", s.path, err)
 			continue
 		}
 	}
 }
 
+// NewCommand creates a new command in the home state with the given invocation string and
+// description.
 func (c *Container) NewCommand(invocation, desc string) error {
 	for _, s := range c.states {
 		if !s.home {
 			continue
 		}
-		s.NewCommand(invocation, desc)
+		s.newCommand(invocation, desc)
 		return nil
 	}
 
 	return errors.New("there is no main state to which the new command should be added")
 }
 
-func (s *state) NewCommand(invocation, desc string) {
+func (s *state) newCommand(invocation, desc string) {
 	var c command
 	c.Invocation = invocation
 	c.Description = desc

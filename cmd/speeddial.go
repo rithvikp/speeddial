@@ -33,6 +33,7 @@ func init() {
 	rootCmd.AddCommand(addCmd)
 }
 
+// Execute starts the program.
 func Execute() error {
 	return rootCmd.Execute()
 }

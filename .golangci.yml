@@ -1,0 +1,49 @@
+run:
+  skip-dirs:
+    - ^api/*
+    - ^ai/*
+    - ^client/*
+    - ^web/*
+
+linters:
+  disable-all: true
+  enable:
+    - govet
+    - errcheck
+    - staticcheck
+    - unused
+    - gosimple
+    - structcheck
+    - varcheck
+    - ineffassign
+    - deadcode
+    - typecheck
+    - golint
+    - goimports
+    - gocritic
+    - scopelint
+
+issues:
+  exclude-use-default: false # Enable golint comment warnings
+  exclude:
+    - Error return value of .((os\.)?std(out|err)\..*|.*Close|.*Flush|os\.Remove(All)?|.*print(f|ln)?|os\.(Un)?Setenv). is not checked
+    - "shadow: declaration of .err. shadows declaration"
+
+linters-settings:
+  gocritic:
+    enabled-tags:
+      - diagnostic
+      - experimental
+      - opinionated
+      - performance
+      - style
+    disabled-checks:
+      - ifElseChain
+      - singleCaseSwitch
+      - commentFormatting
+      - unnamedResult
+      - commentedOutCode
+      - hugeParam
+      - rangeValCopy
+  govet:
+    check-shadowing: true
