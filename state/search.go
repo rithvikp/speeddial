@@ -1,10 +1,7 @@
 package state
 
 import (
-	"fmt"
-	"os"
 	"strings"
-	"text/tabwriter"
 )
 
 // SearchRes defines the response from a command search.
@@ -43,13 +40,15 @@ func (s *state) search(query string) []*command {
 	return matched
 }
 
-// PrettyPrint prints the given search response to console in a nice format.
-func (r *SearchRes) PrettyPrint() {
-	tabw := new(tabwriter.Writer)
-	tabw.Init(os.Stdout, 16, 8, 1, '\t', 0)
-	defer tabw.Flush()
-
-	for _, c := range r.commands {
-		fmt.Fprintf(tabw, "%s\t%s\n", c.Invocation, c.Description)
+func (r *SearchRes) Get(i int) (string, string) {
+	if i >= len(r.commands) {
+		return "", ""
 	}
+
+	c := r.commands[i]
+	return c.Invocation, c.Description
+}
+
+func (r *SearchRes) Size() int {
+	return len(r.commands)
 }

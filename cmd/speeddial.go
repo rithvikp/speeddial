@@ -4,8 +4,10 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/rithvikp/speeddial/state"
+	"github.com/rithvikp/speeddial/term"
 	"github.com/spf13/cobra"
 )
 
@@ -56,7 +58,7 @@ func run(cmd *cobra.Command, args []string) {
 	c := setup()
 	defer cleanup(c)
 
-	c.Search(args[0]).PrettyPrint()
+	term.List(c.Search(args[0]))
 }
 
 func runAdd(cmd *cobra.Command, args []string) {
@@ -64,7 +66,7 @@ func runAdd(cmd *cobra.Command, args []string) {
 	defer cleanup(c)
 
 	// TODO: Validate args accordingly
-	command := args[0]
+	command := strings.Join(args, " ")
 
 	scanner := bufio.NewScanner(os.Stdin)
 	fmt.Print("Please input a description if desired: ")
