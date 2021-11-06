@@ -2,6 +2,7 @@ package term
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/pterm/pterm"
@@ -29,9 +30,9 @@ func List(list QueryableList) {
 
 	moveCursorToStart := func(qlen, lines int) {
 		// Move the cursor up to right below the prompt and left-align (for re-printing)
-		fmt.Printf("\033[%dD", qlen+30)
+		fmt.Fprintf(os.Stderr, "\033[%dD", qlen+30)
 		if lines > 0 {
-			fmt.Printf("\033[%dA", lines)
+			fmt.Fprintf(os.Stderr, "\033[%dA", lines)
 		}
 	}
 
@@ -41,9 +42,9 @@ func List(list QueryableList) {
 	selected := 0
 	for {
 		lines += printList(t, items, selected)
-		fmt.Print("> ", query)
+		fmt.Fprint(os.Stderr, "> ", query)
 		// Wipe the rest of the screen, downwards
-		fmt.Print("\033[0J")
+		fmt.Fprint(os.Stderr, "\033[0J")
 
 		e, _ := t.GetKeyboardEvent()
 		if e.key == KeyCtrlC || e.key == KeyEscape {
@@ -57,8 +58,8 @@ func List(list QueryableList) {
 			}
 			moveCursorToStart(len(query), lines)
 			// Wipe any added content added by this function
-			fmt.Print("\033[0J")
-			fmt.Print(items[selected][0], "\033[K\r\n")
+			fmt.Fprint(os.Stderr, "\033[0J")
+			fmt.Print(items[selected][0], "\r\n")
 			return
 		}
 
@@ -89,8 +90,6 @@ func List(list QueryableList) {
 }
 
 func printList(t *Tty, items [][]string, selected int) int {
-	//tabw := new(tabwriter.Writer)
-	//tabw.Init(os.Stdout, 0, 2, 1, '\t', 0)
 	if len(items) == 0 {
 		return 0
 	}
@@ -120,34 +119,7 @@ func printList(t *Tty, items [][]string, selected int) int {
 
 	tbl = strings.ReplaceAll(tbl, "\n", "\033[K\r\n")
 
-	pterm.Print(pterm.Sprint(tbl, "\033[K\r\n"))
+	pterm.Fprint(os.Stderr, pterm.Sprint(tbl, "\033[K\r\n"))
 
 	return lines
-
-	//for i, item := range items {
-	//for j, text := range item {
-	//if i == selected {
-	//fmt.Fprint(tabw, pterm.Bold.Sprint(text))
-	//} else {
-	//fmt.Fprint(tabw, text, pterm.Bold.Sprint())
-	//}
-
-	//if j < len(item)-1 {
-	//fmt.Fprint(tabw, "\t")
-	//} else {
-	//fmt.Fprint(tabw, "\033[K")
-	//}
-	//}
-
-	//// TODO: Cleanup the \n\r abstractions
-	//fmt.Fprint(tabw, "\n\r")
-	//lines += 1
-	//}
-
-	//if err := tabw.Flush(); err != nil {
-	//fmt.Println("Unable to print the list")
-	//return 0
-	//}
-
-	//return lines
 }
