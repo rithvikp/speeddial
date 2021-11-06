@@ -15,7 +15,7 @@ var (
 	rootCmd = &cobra.Command{
 		Use:                "speeddial",
 		Short:              "Commands at your fingertips",
-		Args:               cobra.MinimumNArgs(1),
+		Args:               cobra.MinimumNArgs(0),
 		DisableFlagParsing: true,
 
 		Run: run,
@@ -58,7 +58,7 @@ func run(cmd *cobra.Command, args []string) {
 	c := setup()
 	defer cleanup(c)
 
-	term.List(c.Search(args[0]))
+	term.List(c)
 }
 
 func runAdd(cmd *cobra.Command, args []string) {

@@ -10,14 +10,19 @@ type SearchRes struct {
 }
 
 // Search searches all state in this container based on the given query.
-func (c *Container) Search(query string) *SearchRes {
+func (c *Container) Search(query string) [][]string {
 	var matched []*command
 
 	for _, s := range c.states {
 		matched = append(matched, s.search(query)...)
 	}
 
-	return &SearchRes{commands: matched}
+	var out [][]string
+	for _, m := range matched {
+		out = append(out, []string{m.Invocation, m.Description})
+	}
+
+	return out
 }
 
 // search searches the commands in this state to find any that match to the query. Currently,
@@ -38,17 +43,4 @@ func (s *state) search(query string) []*command {
 	}
 
 	return matched
-}
-
-func (r *SearchRes) Get(i int) (string, string) {
-	if i >= len(r.commands) {
-		return "", ""
-	}
-
-	c := r.commands[i]
-	return c.Invocation, c.Description
-}
-
-func (r *SearchRes) Size() int {
-	return len(r.commands)
 }
