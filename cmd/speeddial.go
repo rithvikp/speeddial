@@ -50,7 +50,7 @@ func runSearch(cmd *cobra.Command, args []string) {
 	c := setup()
 	defer cleanup(c)
 
-	rawCommand, err := term.List(c.Searcher(), maxDisplayedSearchResults)
+	rawCommand, err := term.List(c.Searcher(), maxDisplayedSearchResults, true)
 	if err == term.ErrUserQuit {
 		return
 	} else if err != nil {

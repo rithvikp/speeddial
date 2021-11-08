@@ -111,6 +111,6 @@ func vt100CursorUp(lines int) string {
 	return fmt.Sprintf("\033[%dA", lines)
 }
 
-func vt100CursorLeft(cols int) string {
-	return fmt.Sprintf("\033[%dD", cols)
+func vt100CursorRight(cols int) string {
+	return fmt.Sprintf("\033[%dC", cols)
 }
