@@ -9,9 +9,9 @@ import (
 	"path/filepath"
 )
 
-// command is a fundamental unit that is some string that can be run in a shell along with
+// Command is a fundamental unit that is some string that can be run in a shell along with
 // additional metadata.
-type command struct {
+type Command struct {
 	Invocation  string `json:"i"`
 	Description string `json:"d"`
 }
@@ -21,7 +21,7 @@ type command struct {
 type state struct {
 	home     bool
 	path     string
-	Commands []*command `json:"c"`
+	Commands []*Command `json:"c"`
 }
 
 // Container encapsulates the various states loaded.
@@ -124,7 +124,7 @@ func (c *Container) NewCommand(invocation, desc string) error {
 }
 
 func (s *state) newCommand(invocation, desc string) {
-	var c command
+	var c Command
 	c.Invocation = invocation
 	c.Description = desc
 

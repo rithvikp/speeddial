@@ -6,9 +6,16 @@ import (
 	"os"
 	"strings"
 
+	"github.com/pterm/pterm"
 	"github.com/rithvikp/speeddial/state"
 	"github.com/rithvikp/speeddial/term"
 	"github.com/spf13/cobra"
+)
+
+const (
+	addPrintCommandEnvVar = "SPEEDDIAL_ADD_PRINT_COMMAND"
+
+	maxDisplayedSearchResults = 10
 )
 
 var (
@@ -18,7 +25,7 @@ var (
 		Args:               cobra.MinimumNArgs(0),
 		DisableFlagParsing: true,
 
-		Run: run,
+		Run: runSearch,
 	}
 
 	addCmd = &cobra.Command{
@@ -43,7 +50,7 @@ func Execute() error {
 func setup() *state.Container {
 	c, err := state.Init()
 	if err != nil {
-		fmt.Printf("Unable to initialize speeddial state: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Unable to initialize speeddial state: %v\n", err)
 		os.Exit(1)
 	}
 
@@ -54,11 +61,25 @@ func cleanup(c *state.Container) {
 	c.Dump()
 }
 
-func run(cmd *cobra.Command, args []string) {
+func runSearch(cmd *cobra.Command, args []string) {
 	c := setup()
 	defer cleanup(c)
 
-	term.List(c)
+	rawCommand, err := term.List(c.Searcher(), maxDisplayedSearchResults)
+	if err == term.ErrUserQuit {
+		return
+	} else if err != nil {
+		fmt.Fprintf(os.Stderr, "Unable to select a new command: %v", err)
+		os.Exit(1)
+	}
+
+	command, ok := rawCommand.(*state.Command)
+	if !ok {
+		fmt.Fprintf(os.Stderr, "Ran into an unexpected error")
+		os.Exit(1)
+	}
+
+	fmt.Println(command.Invocation)
 }
 
 func runAdd(cmd *cobra.Command, args []string) {
@@ -67,6 +88,11 @@ func runAdd(cmd *cobra.Command, args []string) {
 
 	// TODO: Validate args accordingly
 	command := strings.Join(args, " ")
+
+	printCommand := os.Getenv(addPrintCommandEnvVar) != ""
+	if printCommand {
+		fmt.Printf("Adding command: %s\n", pterm.Bold.Sprint(command))
+	}
 
 	scanner := bufio.NewScanner(os.Stdin)
 	fmt.Print("Please input a description if desired: ")
