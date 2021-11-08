@@ -26,7 +26,6 @@ type QueryableList interface {
 // later. Need to brainstorm better ways to keep this component generalizable while cleaning up the
 // interface
 func List(list QueryableList, maxToDisplay int) (interface{}, error) {
-	// TODO: Figure out how to best handle errors/abstract this component
 	t, err := NewTty()
 	defer t.Stop()
 	if err != nil {
@@ -49,9 +48,9 @@ func List(list QueryableList, maxToDisplay int) (interface{}, error) {
 
 	moveCursorToStart := func(qlen, lines int) {
 		// Move the cursor up to right below the prompt and left-align (for re-printing)
-		fmt.Fprintf(os.Stderr, "\033[%dD", qlen+30)
+		fmt.Fprint(os.Stderr, vt100CursorLeft(qlen+30))
 		if lines > 0 {
-			fmt.Fprintf(os.Stderr, "\033[%dA", lines)
+			fmt.Fprint(os.Stderr, vt100CursorUp(lines))
 		}
 	}
 
@@ -60,54 +59,61 @@ func List(list QueryableList, maxToDisplay int) (interface{}, error) {
 	items := list.Search(query)
 	selected := 0
 	for {
+		// Print the updated interface
 		addedLines, err := printList(t, items, maxToDisplay, selected)
 		if err != nil {
 			return nil, err
 		}
 		lines += addedLines
-
 		fmt.Fprint(os.Stderr, "> ", query)
 
-		// Wipe the rest of the screen, downwards
-		fmt.Fprint(os.Stderr, "\033[0J")
+		// Wipe the rest of the screen downwards to remove old, trailing text
+		fmt.Fprint(os.Stderr, vt100ClearEOS())
 
 		e, _ := t.GetKeyboardEvent()
 		if e.key == KeyCtrlC || e.key == KeyEscape {
 			return nil, ErrUserQuit
 		}
 
-		if e.key == KeyEnter {
+		// Handle keyboard events accordingly
+		switch e.key {
+		case KeyEnter:
 			if selected < 0 || selected >= len(items) {
 				return nil, errors.New("unable to select an item")
 			}
 			moveCursorToStart(len(query), lines)
 			// Wipe any added content added by this function
-			fmt.Fprint(os.Stderr, "\033[0J")
+			fmt.Fprint(os.Stderr, vt100ClearEOS())
 
 			return items[selected].Raw, nil
-		}
 
-		if e.key == KeyRune {
+		case KeyRune:
 			query += string(e.char)
 			items = list.Search(query)
 			selected = max(min(selected, len(items)-1), 0)
-		} else if e.key == KeyDelete && len(query) > 0 {
-			query = query[:len(query)-1]
-			items = list.Search(query)
-			selected = max(min(selected, len(items)-1), 0)
-		} else if e.key == KeyUp {
+
+		case KeyDelete:
+			if len(query) > 0 {
+				query = query[:len(query)-1]
+				items = list.Search(query)
+				selected = max(min(selected, len(items)-1), 0)
+			}
+
+		case KeyUp:
 			if selected > 0 {
 				selected -= 1
 			}
-		} else if e.key == KeyDown {
+
+		case KeyDown:
 			if selected < len(items)-1 {
 				selected += 1
 			}
 		}
 
 		// TODO: Only re-render what has changed
-		// TODO: Refactor all the terminal wrangling code
+		// TODO: Refactor the terminal wrangling code to improve readability
 
+		// Reset the cursor to get ready for the interface repaint
 		moveCursorToStart(len(query), lines)
 		lines = 0
 	}
@@ -120,6 +126,7 @@ func printList(t *Tty, items []ListItem, maxToDisplay, selected int) (int, error
 
 	lines := 0
 
+	// Convert the list to a pterm table, bolding the selected row along the way
 	var data pterm.TableData
 	for i, item := range items {
 		if i >= maxToDisplay {
@@ -143,9 +150,10 @@ func printList(t *Tty, items []ListItem, maxToDisplay, selected int) (int, error
 		return 0, fmt.Errorf("unable to print the list: %v", err)
 	}
 
-	tbl = strings.ReplaceAll(tbl, "\n", "\033[K\r\n")
+	// Since the terminal is in raw mode, carriage returns are necessary, so add them in
+	tbl = strings.ReplaceAll(tbl, "\n", vt100ClearEOL()+"\r\n")
 
-	pterm.Fprint(os.Stderr, pterm.Sprint(tbl, "\033[K\r\n"))
+	pterm.Fprint(os.Stderr, pterm.Sprint(tbl, vt100ClearEOL()+"\r\n"))
 
 	return lines, nil
 }

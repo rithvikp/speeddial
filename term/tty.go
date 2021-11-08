@@ -2,6 +2,7 @@ package term
 
 import (
 	"errors"
+	"fmt"
 	"os"
 
 	"golang.org/x/term"
@@ -67,7 +68,7 @@ func (t *Tty) GetKeyboardEvent() (*Event, error) {
 		return &e, nil
 	}
 
-	// TODO: Improve key matching
+	// TODO: Improve key matching (match more characters, match arrows in a better manner etc.)
 	switch int(buf[0]) {
 	case int(KeyCtrlC):
 		e.key = KeyCtrlC
@@ -92,4 +93,24 @@ func (t *Tty) GetKeyboardEvent() (*Event, error) {
 
 func (t *Tty) Stop() error {
 	return term.Restore(int(os.Stdin.Fd()), t.oldState)
+}
+
+// Define functions for manipulating the screen of a VT100 terminal. These are defined as functinos
+// and not constants as some have dynamically adjustable content (such as the number of lines to
+// remove etc.).
+
+func vt100ClearEOS() string {
+	return "\033[0J"
+}
+
+func vt100ClearEOL() string {
+	return "\033[K"
+}
+
+func vt100CursorUp(lines int) string {
+	return fmt.Sprintf("\033[%dA", lines)
+}
+
+func vt100CursorLeft(cols int) string {
+	return fmt.Sprintf("\033[%dD", cols)
 }
