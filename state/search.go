@@ -43,6 +43,8 @@ func (s *state) search(query string) []*Command {
 
 	// TODO: Implement a robust text search scheme
 	for _, c := range s.Commands {
+		c.state = s
+
 		if strings.Contains(strings.ToLower(c.Invocation), query) {
 			matched = append(matched, c)
 

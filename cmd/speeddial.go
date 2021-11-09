@@ -18,13 +18,14 @@ var (
 		Use:   "speeddial",
 		Short: "Commands at your fingertips",
 
-		Run: runSearch,
+		Run: run,
 	}
 )
 
 func init() {
 	rootCmd.AddCommand(addCmd)
 	rootCmd.AddCommand(initCmd)
+	rootCmd.AddCommand(rmCmd)
 }
 
 // Execute starts the program.
@@ -42,17 +43,19 @@ func setup() *state.Container {
 	return c
 }
 
-func cleanup(c *state.Container) {
+func dump(c *state.Container) {
 	c.Dump()
 }
 
-func runSearch(cmd *cobra.Command, args []string) {
+func run(cmd *cobra.Command, args []string) {
 	c := setup()
-	defer cleanup(c)
+	fmt.Println(search(c).Invocation)
+}
 
+func search(c *state.Container) *state.Command {
 	rawCommand, err := term.List(c.Searcher(), maxDisplayedSearchResults, true)
 	if err == term.ErrUserQuit {
-		return
+		os.Exit(0)
 	} else if err != nil {
 		fmt.Fprintf(os.Stderr, "Unable to select a new command: %v", err)
 		os.Exit(1)
@@ -64,5 +67,5 @@ func runSearch(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
-	fmt.Println(command.Invocation)
+	return command
 }

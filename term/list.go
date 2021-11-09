@@ -49,11 +49,11 @@ func List(list QueryableList, maxToDisplay int, vimNavigation bool) (interface{}
 	}
 
 	moveCursorToStart := func(lines int) string {
-		codes := "\r"
+		output := "\r"
 		if lines > 0 {
-			codes += vt100CursorUp(lines)
+			output += vt100CursorUp(lines)
 		}
-		return codes
+		return output
 	}
 
 	moveCursorToEndOfQuery := func(qlen, lines int) string {
@@ -137,6 +137,11 @@ func List(list QueryableList, maxToDisplay int, vimNavigation bool) (interface{}
 
 			return items[selected].Raw, nil
 
+		case KeyCtrlC:
+			// Wipe any added content added by this function
+			fmt.Fprint(os.Stderr, moveCursorToStart(lines), vt100ClearEOS())
+			return nil, ErrUserQuit
+
 		case KeyDelete:
 			if len(query) > 0 {
 				query = query[:len(query)-1]
@@ -149,9 +154,6 @@ func List(list QueryableList, maxToDisplay int, vimNavigation bool) (interface{}
 
 		case KeyDown:
 			listNavDown()
-
-		case KeyCtrlC:
-			return nil, ErrUserQuit
 
 		case KeyEscape:
 			if !vimNavigation {

@@ -27,7 +27,7 @@ var (
 
 func runAdd(cmd *cobra.Command, args []string) {
 	c := setup()
-	defer cleanup(c)
+	defer dump(c)
 
 	// TODO: Validate args accordingly
 	command := strings.Join(args, " ")
@@ -44,6 +44,6 @@ func runAdd(cmd *cobra.Command, args []string) {
 
 	err := c.NewCommand(command, desc)
 	if err != nil {
-		fmt.Printf("Unable to add the new command: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Unable to add the new command: %v\n", err)
 	}
 }
