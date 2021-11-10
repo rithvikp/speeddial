@@ -64,7 +64,7 @@ func (s *Searcher) Search(rawQuery string) []term.ListItem {
 
 			li := term.ListItem{
 				DisplayFields: []term.FormattedContent{inv, desc},
-				Raw:           m,
+				Raw:           m.c,
 			}
 
 			matched = append(matched, li)
