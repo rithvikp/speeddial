@@ -74,17 +74,24 @@ func List(list QueryableList, maxToDisplay int, vimNavigation bool) (interface{}
 	query := ""
 	lines := 0
 	items := list.Search(query)
+	displayOffset := 0
 	selected := 0
 	normalMode := false
 
 	listNavDown := func() {
-		if selected < min(len(items)-1, maxToDisplay-1) {
+		if selected < len(items)-1 {
+			if selected-displayOffset >= maxToDisplay-1 {
+				displayOffset += 1
+			}
 			selected += 1
 		}
 	}
 
 	listNavUp := func() {
 		if selected > 0 {
+			if selected <= displayOffset {
+				displayOffset -= 1
+			}
 			selected -= 1
 		}
 	}
@@ -102,7 +109,7 @@ func List(list QueryableList, maxToDisplay int, vimNavigation bool) (interface{}
 		output += fmt.Sprint("> ", query, vt100ClearEOL(), "\r\n")
 		lines++
 
-		tbl, addedLines, err := printList(t, items, maxToDisplay, selected)
+		tbl, addedLines, err := generateList(t, items, displayOffset, maxToDisplay, selected)
 		if err != nil {
 			return nil, err
 		}
@@ -128,6 +135,7 @@ func List(list QueryableList, maxToDisplay int, vimNavigation bool) (interface{}
 				query += string(e.char)
 				items = list.Search(query)
 				selected = max(min(selected, len(items)-1), 0)
+				displayOffset = max(min(displayOffset, len(items)-1-maxToDisplay), 0)
 				break
 			}
 
@@ -158,6 +166,7 @@ func List(list QueryableList, maxToDisplay int, vimNavigation bool) (interface{}
 				query = query[:len(query)-1]
 				items = list.Search(query)
 				selected = max(min(selected, len(items)-1), 0)
+				displayOffset = max(min(displayOffset, len(items)-1-maxToDisplay), 0)
 			}
 
 		case KeyUp:
@@ -176,19 +185,24 @@ func List(list QueryableList, maxToDisplay int, vimNavigation bool) (interface{}
 	}
 }
 
-func printList(t *Tty, items []ListItem, maxToDisplay, selected int) (string, int, error) {
-	if len(items) == 0 {
+func generateList(t *Tty, items []ListItem, displayOffset, maxToDisplay, selected int) (string, int, error) {
+	if displayOffset < 0 || maxToDisplay < 0 {
+		return "", 0, fmt.Errorf("invalid display offset %d and/or range %d", displayOffset, maxToDisplay)
+	} else if len(items) == 0 {
 		return "", 0, nil
 	}
 
 	lines := 0
 
+	endIndex := displayOffset + maxToDisplay
+	if endIndex > len(items) {
+		endIndex = len(items)
+	}
+
 	// Convert the list to a pterm table, bolding the selected row along the way
 	var data pterm.TableData
-	for i, item := range items {
-		if i >= maxToDisplay {
-			break
-		}
+	for i := displayOffset; i < endIndex; i++ {
+		item := items[i]
 		lines++
 
 		var formatted []string
