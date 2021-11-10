@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 
 	"github.com/pterm/pterm"
@@ -13,8 +14,18 @@ var (
 	ErrUserQuit = errors.New("the user manually exited the view")
 )
 
+type FormattedChunk struct {
+	Start  int
+	Length int
+}
+
+type FormattedContent struct {
+	Content    string
+	Highlights []FormattedChunk
+}
+
 type ListItem struct {
-	DisplayFields []string
+	DisplayFields []FormattedContent
 	Raw           interface{}
 }
 
@@ -179,15 +190,25 @@ func printList(t *Tty, items []ListItem, maxToDisplay, selected int) (string, in
 			break
 		}
 		lines++
-		if i != selected {
-			data = append(data, item.DisplayFields)
-			continue
-		}
 
 		var formatted []string
 		for _, elem := range item.DisplayFields {
-			formatted = append(formatted, pterm.Bold.Sprint(elem))
+
+			// Highlight matching text
+			text, err := formatContent(elem.Content, elem.Highlights, func(s string) string {
+				return pterm.Cyan(s)
+			})
+			if err != nil {
+				return "", 0, err
+			}
+
+			if i == selected {
+				text = pterm.Bold.Sprint(text)
+			}
+
+			formatted = append(formatted, text)
 		}
+
 		data = append(data, formatted)
 	}
 
@@ -202,4 +223,29 @@ func printList(t *Tty, items []ListItem, maxToDisplay, selected int) (string, in
 	output := pterm.Sprint(tbl, vt100ClearEOL()+"\r\n")
 
 	return output, lines, nil
+}
+
+// This function should only be called on unformatted strings (unless the chunk indices take the
+// formatting into account).
+func formatContent(origContent string, chunks []FormattedChunk, f func(string) string) (string, error) {
+	sort.SliceStable(chunks, func(i, j int) bool {
+		return chunks[i].Start < chunks[j].Start
+	})
+
+	var fmtChunks []string
+	j := 0
+	for _, fc := range chunks {
+		if fc.Start < 0 || fc.Length < 0 || fc.Start+fc.Length > len(origContent) {
+			return "", fmt.Errorf("found an invalid format chunk with start %d and length %d", fc.Start, fc.Length)
+		} else if fc.Start < j {
+			return "", fmt.Errorf("found an overlapping format chunk with start %d", fc.Start)
+		}
+
+		fmtChunks = append(fmtChunks, origContent[j:fc.Start])
+		fmtChunks = append(fmtChunks, pterm.Cyan(origContent[fc.Start:fc.Start+fc.Length]))
+		j = fc.Start + fc.Length
+	}
+	fmtChunks = append(fmtChunks, origContent[j:])
+
+	return strings.Join(fmtChunks, ""), nil
 }
