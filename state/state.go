@@ -9,6 +9,13 @@ import (
 	"path/filepath"
 )
 
+const (
+	dumpVersion1 = 1
+
+	// This path is relative to the user's home directory.
+	homeStatePath = ".config/speeddial/state.json"
+)
+
 // Command is a fundamental unit that is some string that can be run in a shell along with
 // additional metadata.
 type Command struct {
@@ -27,6 +34,14 @@ type state struct {
 	Commands []*Command `json:"c"`
 }
 
+// dump is a wrapper around state that is persisted and saved to a file for use across invocations
+// of the program. It is used to provide extensibility (and backwards compatible) in case the
+// structure of state changes.
+type dump struct {
+	Version int    `json:"v"`
+	Data    *state `json:"d"`
+}
+
 // Container encapsulates the various states loaded.
 type Container struct {
 	states []*state
@@ -34,14 +49,24 @@ type Container struct {
 
 // initFile creates a new speeddial state file at the given path.
 func initFile(path string) error {
+	// TODO: Handle the case where something else already uses ~/.config/speeddial
+	dir, _ := filepath.Split(path)
+	err := os.MkdirAll(dir, 0755)
+	if err != nil {
+		return err
+	}
+
 	f, err := os.Create(path)
 	if err != nil {
 		return err
 	}
 	defer f.Close()
 
-	var s state
-	return json.NewEncoder(f).Encode(&s)
+	d := dump{
+		Version: dumpVersion1,
+		Data:    &state{},
+	}
+	return json.NewEncoder(f).Encode(&d)
 }
 
 // Init initializes the state container, also loading in the home state file.
@@ -53,7 +78,7 @@ func Init() (*Container, error) {
 
 	var c Container
 
-	err = c.Load(filepath.Join(u.HomeDir, ".speeddial"))
+	err = c.Load(filepath.Join(u.HomeDir, homeStatePath))
 	if err != nil {
 		return nil, fmt.Errorf("unable to load your home speeddial state: %v", err)
 	}
@@ -84,13 +109,23 @@ func (c *Container) Load(path string) error {
 	}
 	defer f.Close()
 
-	var s state
-	if err := json.NewDecoder(f).Decode(&s); err != nil {
+	var d dump
+	if err := json.NewDecoder(f).Decode(&d); err != nil {
 		return err
 	}
+
+	if d.Version < dumpVersion1 {
+		return fmt.Errorf("%d is an unsupported version for state at %s", d.Version, path)
+	}
+
+	s := d.Data
+	if s == nil {
+		return fmt.Errorf("dump at %s does not have any state", path)
+	}
+
 	s.path = path
 
-	c.states = append(c.states, &s)
+	c.states = append(c.states, s)
 
 	return nil
 }
@@ -105,7 +140,11 @@ func (c *Container) Dump() {
 		}
 		defer f.Close()
 
-		if err := json.NewEncoder(f).Encode(s); err != nil {
+		d := dump{
+			Version: dumpVersion1,
+			Data:    s,
+		}
+		if err := json.NewEncoder(f).Encode(&d); err != nil {
 			fmt.Fprintf(os.Stderr, "Unable to dump the state at %s: %v\n", s.path, err)
 			continue
 		}
