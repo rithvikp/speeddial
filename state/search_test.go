@@ -50,18 +50,23 @@ func TestMatch(t *testing.T) {
 				{start: 8, length: 8},
 			},
 		},
-		// TODO: The algorithm currently quite imperfect at minimizing the number of chunks.
-		// It makes local decisions to minimize chunks, but, without look-ahead/look-behind,
-		// this strategy cannot catch most cases.
-		//{
-		//msg:   "split equality prefix/suffix match",
-		//query: "kube pods",
-		//src:   "kubectl get pods",
-		//matches: []matchedText{
-		//{start: 0, length: 4},
-		//{start: 11, length: 5},
-		//},
-		//},
+		{
+			msg:   "single character query match",
+			query: "p",
+			src:   "kubectl show pods",
+			matches: []matchedText{
+				{start: 13, length: 1},
+			},
+		},
+		{
+			msg:   "split equality prefix/suffix match",
+			query: "kube pods",
+			src:   "kubectl get pods",
+			matches: []matchedText{
+				{start: 0, length: 4},
+				{start: 11, length: 5},
+			},
+		},
 		{
 			msg:   "split equality interior match",
 			query: "run hub",
@@ -79,17 +84,33 @@ func TestMatch(t *testing.T) {
 				{start: 3, length: 3},
 			},
 		},
+		{
+			msg:   "minimize chunk count",
+			query: "build",
+			src:   "bu i ld ild",
+			matches: []matchedText{
+				{start: 0, length: 2},
+				{start: 8, length: 3},
+			},
+		},
+		// Will be re-added once this functionality is implemented.
+		//{
+		//msg:   "minimize the number of tokens split across chunks",
+		//query: "go build",
+		//src:   "go bud ild build",
+		//matches: []matchedText{
+		//{start: 0, length: 3},
+		//{start: 11, length: 5},
+		//},
+		//},
 	}
 
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.msg, func(t *testing.T) {
-			q := query{
-				raw:     tt.query,
-				cleaned: tt.query,
-			}
+			q := parseQuery(tt.query)
 
-			matches := match(&q, tt.src)
+			matches := match(q, tt.src)
 			if diff := cmp.Diff(matches, tt.matches, cmp.AllowUnexported(matchedText{})); diff != "" {
 				t.Errorf("[]matchedText diff (-got, +want):\n%s", diff)
 			}
