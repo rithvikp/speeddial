@@ -105,30 +105,69 @@ type matchedText struct {
 	length int
 }
 
+// match takes a given query and determines whether it exists in src as a sequence of
+// (potentially non-consecutive) substrings, returning the substrings if a match is found.
+//
+// A DP algorithm is used: it looks us successive prefixes of src and query, keeping track of
+// the best matches so far.
 func match(q *query, src string) []matchedText {
-	if len(q.cleaned) == 0 {
+	if len(q.cleaned) == 0 || len(src) == 0 || len(q.cleaned) > len(src) {
 		return nil
+	}
+
+	type state struct {
+		valid   bool
+		matches []matchedText
 	}
 
 	src = strings.TrimSpace(strings.ToLower(src))
 
-	var matches []matchedText
-
-	i := 0
-	for i < len(src) {
-		j := strings.Index(src[i:], q.cleaned)
-		if j == -1 {
-			break
+	min := func(a, b int) int {
+		if a <= b {
+			return a
 		}
-
-		mt := matchedText{
-			start:  i + j,
-			length: len(q.cleaned),
-		}
-		matches = append(matches, mt)
-
-		i += j + len(q.cleaned)
+		return b
 	}
 
-	return matches
+	dp := make([][]state, len(src))
+
+	for i := 0; i < len(src); i++ {
+		dp[i] = make([]state, len(q.cleaned))
+		if src[i] == q.cleaned[0] {
+			dp[i][0].valid = true
+			dp[i][0].matches = append(dp[i][0].matches, matchedText{
+				start:  i,
+				length: 1,
+			})
+		}
+
+		for j := 1; j < min(i+1, len(q.cleaned)); j++ {
+			if src[i] == q.cleaned[j] && dp[i-1][j-1].valid {
+				// Choose either to take a match that occurred before or add to a currently active
+				// one depending on which minimizes the number of chunks.
+				if !(dp[i-1][j].valid && len(dp[i-1][j-1].matches)+1 >= len(dp[i-1][j].matches)) {
+					dp[i][j].valid = true
+					dp[i][j].matches = append(dp[i][j].matches, dp[i-1][j-1].matches...)
+					prev := &dp[i][j].matches[len(dp[i][j].matches)-1]
+
+					if prev.start+prev.length == i {
+						prev.length++
+					} else {
+						dp[i][j].matches = append(dp[i][j].matches, matchedText{
+							start:  i,
+							length: 1,
+						})
+					}
+					break
+				}
+			}
+
+			if dp[i-1][j].valid {
+				dp[i][j].valid = true
+				dp[i][j].matches = append(dp[i][j].matches, dp[i-1][j].matches...)
+			}
+		}
+	}
+
+	return dp[len(src)-1][len(q.cleaned)-1].matches
 }
