@@ -13,7 +13,7 @@ const (
 	dumpVersion1 = 1
 
 	// This path is relative to the user's home directory.
-	homeStatePath = ".config/speeddial/state.json"
+	primaryStatePath = ".config/speeddial/state.json"
 )
 
 // Command is a fundamental unit that is some string that can be run in a shell along with
@@ -29,7 +29,7 @@ type Command struct {
 // state is made up primarily of a set of commands. A state is the module that is stored persistently
 // and can be shared.
 type state struct {
-	home     bool
+	primary  bool
 	path     string
 	Commands []*Command `json:"c"`
 }
@@ -69,7 +69,7 @@ func initFile(path string) error {
 	return json.NewEncoder(f).Encode(&d)
 }
 
-// Init initializes the state container, also loading in the home state file.
+// Init initializes the state container, also loading in the primary state file.
 func Init() (*Container, error) {
 	u, err := user.Current()
 	if err != nil {
@@ -78,13 +78,13 @@ func Init() (*Container, error) {
 
 	var c Container
 
-	err = c.Load(filepath.Join(u.HomeDir, homeStatePath))
+	err = c.Load(filepath.Join(u.HomeDir, primaryStatePath))
 	if err != nil {
-		return nil, fmt.Errorf("unable to load your home speeddial state: %v", err)
+		return nil, fmt.Errorf("unable to load your primary speeddial state: %v", err)
 	}
 
 	// TODO: Fix this hack
-	c.states[0].home = true
+	c.states[0].primary = true
 
 	return &c, nil
 }
@@ -151,11 +151,11 @@ func (c *Container) Dump() {
 	}
 }
 
-// NewCommand creates a new command in the home state with the given invocation string and
+// NewCommand creates a new command in the primary state with the given invocation string and
 // description.
 func (c *Container) NewCommand(invocation, desc string) error {
 	for _, s := range c.states {
-		if !s.home {
+		if !s.primary {
 			continue
 		}
 		s.newCommand(invocation, desc)

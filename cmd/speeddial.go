@@ -16,7 +16,7 @@ const (
 var (
 	rootCmd = &cobra.Command{
 		Use:   "speeddial",
-		Short: "Commands at your fingertips",
+		Short: "Shell commands at your fingertips",
 
 		Run: run,
 	}
