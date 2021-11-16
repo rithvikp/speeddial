@@ -12,6 +12,7 @@ type Searcher struct {
 	c *Container
 }
 
+// Searcher returns a Searcher over the container.
 func (c *Container) Searcher() *Searcher {
 	return &Searcher{c: c}
 }
@@ -94,7 +95,7 @@ func (s *state) search(q *query) []matchedCommand {
 			c: c,
 		}
 
-		if len(q.cleaned) == 0 {
+		if q.cleaned == "" {
 			matched = append(matched, mc)
 			continue
 		}
@@ -119,7 +120,7 @@ func (s *state) search(q *query) []matchedCommand {
 //
 // TODO: Minimize the number of tokens that are split across chunks.
 func match(q *query, src string) []matchedText {
-	if len(q.cleaned) == 0 || len(src) == 0 || len(q.cleaned) > len(src) {
+	if q.cleaned == "" || src == "" || len(q.cleaned) > len(src) {
 		return nil
 	}
 

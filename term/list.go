@@ -10,37 +10,56 @@ import (
 	"github.com/pterm/pterm"
 )
 
+// Canned errors for terminal interfaces.
 var (
 	ErrUserQuit = errors.New("the user manually exited the view")
 )
 
+// FormattedChunk defines a section of contiguous text.
 type FormattedChunk struct {
 	Start  int
 	Length int
 }
 
+// FormattedContent is a set of text with certain parts marked for additional formatting. Content
+// contains all text to be shown, with the Highlights slice specifying section that should be
+// displayed differently.
 type FormattedContent struct {
 	Content    string
 	Highlights []FormattedChunk
 }
 
+// ListItem represents an individual item in the list. It is made up of a list of content to display
+// and an associated arbitrary piece of data that will be returned to the caller if the item is
+// selected.
 type ListItem struct {
 	DisplayFields []FormattedContent
 	Raw           interface{}
 }
 
+// QueryableList abstracts a searchable corpus of data. The Search method will be repeatedly called as
+// the query changes.
 type QueryableList interface {
 	Search(query string) []ListItem
 }
 
+// List implements an interactive terminal list, printing the interface out to stderr and allowing
+// the user to navigate and choose an option.
+//
+// The Vim bindings are currently limited to just list navigation.
+//
 // TODO: I really don't like returning an interface{} and then casting it back to the correct type
 // later. Need to brainstorm better ways to keep this component generalizable while cleaning up the
 // interface
-
-// The Vim bindings are currently limited to just list navigation.
 func List(list QueryableList, maxToDisplay int, vimNavigation bool) (interface{}, error) {
 	t, err := NewTty()
-	defer t.Stop()
+	defer func() {
+		err := t.Stop()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Unable to restore the terminal interface: %v", err)
+		}
+	}()
+
 	if err != nil {
 		return nil, fmt.Errorf("unable to initialize the terminal interface: %v", err)
 	}
@@ -81,18 +100,18 @@ func List(list QueryableList, maxToDisplay int, vimNavigation bool) (interface{}
 	listNavDown := func() {
 		if selected < len(items)-1 {
 			if selected-displayOffset >= maxToDisplay-1 {
-				displayOffset += 1
+				displayOffset++
 			}
-			selected += 1
+			selected++
 		}
 	}
 
 	listNavUp := func() {
 		if selected > 0 {
 			if selected <= displayOffset {
-				displayOffset -= 1
+				displayOffset--
 			}
-			selected -= 1
+			selected--
 		}
 	}
 
@@ -130,7 +149,7 @@ func List(list QueryableList, maxToDisplay int, vimNavigation bool) (interface{}
 		}
 
 		switch e.key {
-		case KeyRune:
+		case KeyChar:
 			if !normalMode {
 				query += string(e.char)
 				items = list.Search(query)
@@ -255,8 +274,8 @@ func formatContent(origContent string, chunks []FormattedChunk, f func(string) s
 			return "", fmt.Errorf("found an overlapping format chunk with start %d", fc.Start)
 		}
 
-		fmtChunks = append(fmtChunks, origContent[j:fc.Start])
-		fmtChunks = append(fmtChunks, pterm.Cyan(origContent[fc.Start:fc.Start+fc.Length]))
+		fChunk := pterm.Cyan(origContent[fc.Start : fc.Start+fc.Length])
+		fmtChunks = append(fmtChunks, origContent[j:fc.Start], fChunk)
 		j = fc.Start + fc.Length
 	}
 	fmtChunks = append(fmtChunks, origContent[j:])

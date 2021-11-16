@@ -165,6 +165,7 @@ func (c *Container) NewCommand(invocation, desc string) error {
 	return errors.New("there is no main state to which the new command should be added")
 }
 
+// DeleteCommand deletes the given command from the container.
 func (c *Container) DeleteCommand(command *Command) error {
 	if command.state == nil {
 		return fmt.Errorf("command %q did not have a corresponding state", command.Invocation)

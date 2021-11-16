@@ -8,35 +8,45 @@ import (
 	"golang.org/x/term"
 )
 
+// Tty represents a raw terminal interface.
 type Tty struct {
 	oldState *term.State
 }
 
+// Key represents keyboard keys.
 type Key int
 
+// Define various keys that are currently tracked by the application. These are mostly special
+// keys/key combos. KeyChar represents an actual character. The definitions are split up into
+// multiple blocks as only a few keys/key combos are currently tracked.
 const (
-	KeyRune Key = iota
+	KeyChar Key = iota
 	KeyCtrlA
 	KeyCtrlB
 	KeyCtrlC
 )
 
+// Define additional keys.
+const (
+	KeyUp Key = iota + 512
+	KeyDown
+)
+
+// Define even more keys.
 const (
 	KeyEnter  Key = 13
 	KeyEscape Key = 27
 	KeyDelete Key = 127
 )
 
-const (
-	KeyUp Key = iota + 512
-	KeyDown
-)
-
+// Event represents a keyboard event. If the Key is KeyChar, the char field should be checked for
+// the specific character that was pressed.
 type Event struct {
 	key  Key
 	char rune
 }
 
+// NewTty creates a new Tty. It has a side-effect of switching the current terminal to raw mode.
 func NewTty() (*Tty, error) {
 	t := Tty{}
 
@@ -49,6 +59,7 @@ func NewTty() (*Tty, error) {
 	return &t, err
 }
 
+// GetKeyboardEvent blocks until there is a keyboard event, and then returns it.
 func (t *Tty) GetKeyboardEvent() (*Event, error) {
 	buf := make([]byte, 5)
 	n, err := os.Stdin.Read(buf)
@@ -63,7 +74,7 @@ func (t *Tty) GetKeyboardEvent() (*Event, error) {
 	e := Event{}
 	// Handle regular characters
 	if n == 1 && buf[0] >= ' ' && buf[0] <= '~' {
-		e.key = KeyRune
+		e.key = KeyChar
 		e.char = rune(buf[0])
 		return &e, nil
 	}
@@ -91,6 +102,8 @@ func (t *Tty) GetKeyboardEvent() (*Event, error) {
 	return &e, nil
 }
 
+// Stop restore the current terminal to its previous state. It should be called after the caller
+// is done using the Tty.
 func (t *Tty) Stop() error {
 	return term.Restore(int(os.Stdin.Fd()), t.oldState)
 }
