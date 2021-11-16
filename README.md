@@ -39,7 +39,7 @@ $ spd rm
 2. Build the package.
 
     ```bash
-    go build github.com/rithvikp/speeddial
+    make build
     ```
 
 3. Add the created `speeddial` binary to your PATH (move it into a relevant directory etc.)
