@@ -49,11 +49,15 @@ $ spd rm
 ### Initialize
 
 2. Update the relevant shell configuration file to initialize Speeddial for every shell session.
-   Currently only Zsh is supported.
 
     Zsh:
     ```sh
     eval "$(speeddial init zsh)"
+    ```
+
+    Fish:
+    ```sh
+    eval (speeddial init fish)
     ```
 
 3. After sourcing your shell configuration (or creating a new terminal session), start using
