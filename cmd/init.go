@@ -46,11 +46,11 @@ spd() {
 	fishInitialization = `
 function spd
     if test "$argv[1]" = "add"; and test (count $argv) = 1
-        SPEEDDIAL_ADD_PRINT_COMMAND=1 ./speeddial add $history[1]
+        SPEEDDIAL_ADD_PRINT_COMMAND=1 speeddial add $history[1]
     else if test (count $argv) = 0
-        commandline (./speeddial)
+        commandline (speeddial)
     else
-        ./speeddial $argv
+        speeddial $argv
     end
 end
 `

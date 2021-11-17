@@ -57,7 +57,7 @@ $ spd rm
 
     Fish:
     ```sh
-    eval (speeddial init fish)
+    speeddial init fish | source
     ```
 
 3. After sourcing your shell configuration (or creating a new terminal session), start using
