@@ -35,8 +35,8 @@ type matchedCommand struct {
 }
 
 // Search searches all state in this container based on the given query.
-func (s *Searcher) Search(rawQuery string) []term.ListItem {
-	var matched []term.ListItem
+func (s *Searcher) Search(rawQuery string) []term.ListItem[*Command] {
+	var matched []term.ListItem[*Command]
 	q := parseQuery(rawQuery)
 
 	for _, s := range s.c.states {
@@ -63,7 +63,7 @@ func (s *Searcher) Search(rawQuery string) []term.ListItem {
 				})
 			}
 
-			li := term.ListItem{
+			li := term.ListItem[*Command]{
 				DisplayFields: []term.FormattedContent{inv, desc},
 				Raw:           m.c,
 			}
@@ -113,7 +113,7 @@ func (s *state) search(q *query) []matchedCommand {
 // match takes a given query and determines whether it exists in src as a sequence of
 // (potentially non-consecutive) substrings, returning the substrings if a match is found.
 //
-// A DP algorithm is used: it looks us successive prefixes of src and query, keeping track of
+// A DP algorithm is used: it looks at successive prefixes of src and query, keeping track of
 // all matches so far. At the end, the full match (ie. a match where the entire query appears
 // in some form in src) with the fewest chunks (and then the earliest chunk as a tiebreaker)
 // is returned.

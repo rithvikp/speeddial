@@ -53,17 +53,11 @@ func run(cmd *cobra.Command, args []string) {
 }
 
 func search(c *state.Container) *state.Command {
-	rawCommand, err := term.List(c.Searcher(), maxDisplayedSearchResults, true)
+	command, err := term.List(term.QueryableList[*state.Command](c.Searcher()), maxDisplayedSearchResults, true)
 	if err == term.ErrUserQuit {
 		os.Exit(0)
 	} else if err != nil {
 		fmt.Fprintf(os.Stderr, "Unable to select a new command: %v", err)
-		os.Exit(1)
-	}
-
-	command, ok := rawCommand.(*state.Command)
-	if !ok {
-		fmt.Fprintf(os.Stderr, "Ran into an unexpected error")
 		os.Exit(1)
 	}
 

@@ -40,8 +40,7 @@ spd() {
     else
         speeddial $@
     fi
-}
-`
+}`
 
 	fishInitialization = `
 function spd
@@ -52,6 +51,5 @@ function spd
     else
         speeddial $argv
     end
-end
-`
+end`
 )

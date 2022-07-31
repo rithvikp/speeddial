@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/pterm/pterm"
 	"golang.org/x/term"
 )
 
@@ -102,10 +103,50 @@ func (t *Tty) GetKeyboardEvent() (*Event, error) {
 	return &e, nil
 }
 
-// Stop restore the current terminal to its previous state. It should be called after the caller
+// Stop restores the current terminal to its previous state. It should be called after the caller
 // is done using the Tty.
 func (t *Tty) Stop() error {
 	return term.Restore(int(os.Stdin.Fd()), t.oldState)
+}
+
+func (t *Tty) NumLines(s string) int {
+	width, _, err := term.GetSize(int(os.Stdin.Fd()))
+	if err != nil {
+		panic(err)
+	}
+	return numLinesInWidth(s, width)
+}
+
+// numLinesInWidth returns the number of lines (after wrapping) taken up by the
+// given string when shown on a screen with the given width. There are some
+// significant known limitations to the current implementation (including support
+// for some vt100 escape codes, tabs etc.).
+//
+// Keep track of the number of characters in the current line, adding a new line
+// when the max width is reached. Skip over escape codes.
+func numLinesInWidth(s string, width int) int {
+	if s == "" {
+		return 0
+	}
+	lines := 1
+	charsInLine := 0
+	// Escape sequences often end with a letter. If this value is true, skip parsing
+	// characters until a letter is visited.
+	skipTillLetter := false
+	s = pterm.RemoveColorFromString(s)
+	for _, c := range s {
+		if c == '\n' || charsInLine > width {
+			charsInLine = 0
+			lines++
+		} else if c == '\033' {
+			skipTillLetter = true
+		} else if !skipTillLetter && c != '\r' {
+			charsInLine++
+		} else if 'A' <= c && c <= 'Z' || 'a' <= c && c <= 'a' {
+			skipTillLetter = false
+		}
+	}
+	return lines
 }
 
 // Define functions for manipulating the screen of a VT100 terminal. These are defined as functinos
@@ -126,4 +167,16 @@ func vt100CursorUp(lines int) string {
 
 func vt100CursorRight(cols int) string {
 	return fmt.Sprintf("\033[%dC", cols)
+}
+
+func vt100CursorMove(row, col int) string {
+	return fmt.Sprintf("\033[%d;%dH", row, col)
+}
+
+func vt100SaveCursorPos() string {
+	return "\0337"
+}
+
+func vt100ResetCursorToSavedPos() string {
+	return "\0338"
 }

@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/pterm/pterm"
+	"golang.org/x/exp/constraints"
 )
 
 // Canned errors for terminal interfaces.
@@ -32,26 +33,36 @@ type FormattedContent struct {
 // ListItem represents an individual item in the list. It is made up of a list of content to display
 // and an associated arbitrary piece of data that will be returned to the caller if the item is
 // selected.
-type ListItem struct {
+type ListItem[T any] struct {
 	DisplayFields []FormattedContent
-	Raw           interface{}
+	Raw           T
 }
 
 // QueryableList abstracts a searchable corpus of data. The Search method will be repeatedly called as
 // the query changes.
-type QueryableList interface {
-	Search(query string) []ListItem
+type QueryableList[T any] interface {
+	Search(query string) []ListItem[T]
+}
+
+func min[T constraints.Ordered](a, b T) T {
+	if a <= b {
+		return a
+	}
+	return b
+}
+
+func max[T constraints.Ordered](a, b T) T {
+	if a >= b {
+		return a
+	}
+	return b
 }
 
 // List implements an interactive terminal list, printing the interface out to stderr and allowing
 // the user to navigate and choose an option.
 //
 // The Vim bindings are currently limited to just list navigation.
-//
-// TODO: I really don't like returning an interface{} and then casting it back to the correct type
-// later. Need to brainstorm better ways to keep this component generalizable while cleaning up the
-// interface
-func List(list QueryableList, maxToDisplay int, vimNavigation bool) (interface{}, error) {
+func List[Payload any](list QueryableList[Payload], maxToDisplay int, vimNavigation bool) (Payload, error) {
 	t, err := NewTty()
 	defer func() {
 		err := t.Stop()
@@ -60,42 +71,25 @@ func List(list QueryableList, maxToDisplay int, vimNavigation bool) (interface{}
 		}
 	}()
 
+	var emptyPayload Payload
 	if err != nil {
-		return nil, fmt.Errorf("unable to initialize the terminal interface: %v", err)
-	}
-
-	min := func(a, b int) int {
-		if a <= b {
-			return a
-		}
-		return b
-	}
-
-	max := func(a, b int) int {
-		if a >= b {
-			return a
-		}
-		return b
-	}
-
-	moveCursorToStart := func(lines int) string {
-		output := "\r"
-		if lines > 0 {
-			output += vt100CursorUp(lines)
-		}
-		return output
-	}
-
-	moveCursorToEndOfQuery := func(qlen, lines int) string {
-		return fmt.Sprint(moveCursorToStart(lines), vt100CursorRight(len("> ")+qlen))
+		return emptyPayload, fmt.Errorf("unable to initialize the terminal interface: %v", err)
 	}
 
 	query := ""
-	lines := 0
 	items := list.Search(query)
 	displayOffset := 0
 	selected := 0
 	normalMode := false
+	output := ""
+
+	moveCursorToStart := func() string {
+		lines := max(0, t.NumLines(output)-1)
+		return "\r" + vt100CursorUp(lines)
+	}
+	moveCursorToEndOfQuery := func(queryLen int) string {
+		return fmt.Sprint(moveCursorToStart(), vt100CursorRight(len("> ")+queryLen))
+	}
 
 	listNavDown := func() {
 		if selected < len(items)-1 {
@@ -105,7 +99,6 @@ func List(list QueryableList, maxToDisplay int, vimNavigation bool) (interface{}
 			selected++
 		}
 	}
-
 	listNavUp := func() {
 		if selected > 0 {
 			if selected <= displayOffset {
@@ -119,33 +112,28 @@ func List(list QueryableList, maxToDisplay int, vimNavigation bool) (interface{}
 	// and relevant escape codes in order to have a smooth UI). Then, wait for a keystroke,
 	// handle it appropriately, and repeat the entire process.
 	for {
-		output := ""
-
 		// TODO: Refactor the terminal wrangling code to improve readability
-		output += moveCursorToStart(lines)
+		output = "\r"
 
 		// Print the updated interface
 		output += fmt.Sprint("> ", query, vt100ClearEOL(), "\r\n")
-		lines++
 
-		tbl, addedLines, err := generateList(t, items, displayOffset, maxToDisplay, selected)
+		tbl, err := generateList(t, items, displayOffset, maxToDisplay, selected)
 		if err != nil {
-			return nil, err
+			return emptyPayload, err
 		}
 		output += tbl
-		lines += addedLines
 
 		// Wipe the rest of the screen downwards to remove old, trailing text
 		output += vt100ClearEOS()
-		output += moveCursorToEndOfQuery(len(query), lines)
-		lines = 0
+		output += moveCursorToEndOfQuery(len(query))
 
 		fmt.Fprint(os.Stderr, output)
 
 		// Handle keyboard events accordingly
 		e, err := t.GetKeyboardEvent()
 		if err != nil {
-			return nil, fmt.Errorf("unable to process user keystroke: %v", err)
+			return emptyPayload, fmt.Errorf("unable to process user keystroke: %v", err)
 		}
 
 		switch e.key {
@@ -162,23 +150,23 @@ func List(list QueryableList, maxToDisplay int, vimNavigation bool) (interface{}
 				listNavDown()
 			} else if e.char == 'k' {
 				listNavUp()
-			} else if e.char == 'i' {
+			} else if e.char == 'i' || e.char == 'a' {
 				normalMode = false
 			}
 
 		case KeyEnter:
 			if selected < 0 || selected >= len(items) {
-				return nil, errors.New("unable to select an item")
+				return emptyPayload, errors.New("unable to select an item")
 			}
 			// Wipe any added content added by this function
-			fmt.Fprint(os.Stderr, moveCursorToStart(lines), vt100ClearEOS())
+			fmt.Fprint(os.Stderr, moveCursorToStart(), vt100ClearEOS())
 
 			return items[selected].Raw, nil
 
 		case KeyCtrlC:
 			// Wipe any added content added by this function
-			fmt.Fprint(os.Stderr, moveCursorToStart(lines), vt100ClearEOS())
-			return nil, ErrUserQuit
+			fmt.Fprint(os.Stderr, "\r", vt100ClearEOS())
+			return emptyPayload, ErrUserQuit
 
 		case KeyDelete:
 			if len(query) > 0 {
@@ -196,7 +184,7 @@ func List(list QueryableList, maxToDisplay int, vimNavigation bool) (interface{}
 
 		case KeyEscape:
 			if !vimNavigation {
-				return nil, ErrUserQuit
+				return emptyPayload, ErrUserQuit
 			}
 
 			normalMode = true
@@ -204,14 +192,12 @@ func List(list QueryableList, maxToDisplay int, vimNavigation bool) (interface{}
 	}
 }
 
-func generateList(t *Tty, items []ListItem, displayOffset, maxToDisplay, selected int) (string, int, error) {
+func generateList[T any](t *Tty, items []ListItem[T], displayOffset, maxToDisplay, selected int) (string, error) {
 	if displayOffset < 0 || maxToDisplay < 0 {
-		return "", 0, fmt.Errorf("invalid display offset %d and/or range %d", displayOffset, maxToDisplay)
+		return "", fmt.Errorf("invalid display offset %d and/or range %d", displayOffset, maxToDisplay)
 	} else if len(items) == 0 {
-		return "", 0, nil
+		return "", nil
 	}
-
-	lines := 0
 
 	endIndex := displayOffset + maxToDisplay
 	if endIndex > len(items) {
@@ -222,7 +208,6 @@ func generateList(t *Tty, items []ListItem, displayOffset, maxToDisplay, selecte
 	var data pterm.TableData
 	for i := displayOffset; i < endIndex; i++ {
 		item := items[i]
-		lines++
 
 		var formatted []string
 		for _, elem := range item.DisplayFields {
@@ -232,7 +217,7 @@ func generateList(t *Tty, items []ListItem, displayOffset, maxToDisplay, selecte
 				return pterm.Cyan(s)
 			})
 			if err != nil {
-				return "", 0, err
+				return "", err
 			}
 
 			if i == selected {
@@ -247,15 +232,13 @@ func generateList(t *Tty, items []ListItem, displayOffset, maxToDisplay, selecte
 
 	tbl, err := pterm.DefaultTable.WithData(data).Srender()
 	if err != nil {
-		return "", 0, fmt.Errorf("unable to print the list: %v", err)
+		return "", fmt.Errorf("unable to print the list: %v", err)
 	}
 
 	// Since the terminal is in raw mode, carriage returns are necessary, so add them in
 	tbl = strings.ReplaceAll(tbl, "\n", vt100ClearEOL()+"\r\n")
 
-	output := pterm.Sprint(tbl, vt100ClearEOL()+"\r\n")
-
-	return output, lines, nil
+	return tbl, nil
 }
 
 // This function should only be called on unformatted strings (unless the chunk indices take the
