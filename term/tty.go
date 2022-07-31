@@ -109,6 +109,7 @@ func (t *Tty) Stop() error {
 	return term.Restore(int(os.Stdin.Fd()), t.oldState)
 }
 
+// NumLines returns the number of lines that the specified string would take up in the terminal.
 func (t *Tty) NumLines(s string) int {
 	width, _, err := term.GetSize(int(os.Stdin.Fd()))
 	if err != nil {
@@ -168,6 +169,10 @@ func vt100CursorUp(lines int) string {
 func vt100CursorRight(cols int) string {
 	return fmt.Sprintf("\033[%dC", cols)
 }
+
+var _ = vt100CursorMove
+var _ = vt100SaveCursorPos
+var _ = vt100ResetCursorToSavedPos
 
 func vt100CursorMove(row, col int) string {
 	return fmt.Sprintf("\033[%d;%dH", row, col)

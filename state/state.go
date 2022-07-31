@@ -51,7 +51,7 @@ type Container struct {
 func initFile(path string) error {
 	// TODO: Handle the case where something else already uses ~/.config/speeddial
 	dir, _ := filepath.Split(path)
-	err := os.MkdirAll(dir, 0755)
+	err := os.MkdirAll(dir, 0o755)
 	if err != nil {
 		return err
 	}
@@ -138,7 +138,6 @@ func (c *Container) Dump() {
 			fmt.Fprintf(os.Stderr, "Unable to open the file at %s to dump state: %v\n", s.path, err)
 			continue
 		}
-		defer f.Close()
 
 		d := dump{
 			Version: dumpVersion1,
@@ -146,8 +145,10 @@ func (c *Container) Dump() {
 		}
 		if err := json.NewEncoder(f).Encode(&d); err != nil {
 			fmt.Fprintf(os.Stderr, "Unable to dump the state at %s: %v\n", s.path, err)
+			f.Close()
 			continue
 		}
+		f.Close()
 	}
 }
 
