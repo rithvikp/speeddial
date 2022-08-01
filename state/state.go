@@ -7,6 +7,8 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
+
+	"golang.org/x/exp/slices"
 )
 
 const (
@@ -176,7 +178,7 @@ func (c *Container) DeleteCommand(command *Command) error {
 	s := command.state
 	for i, sc := range s.Commands {
 		if sc == command {
-			s.Commands = append(s.Commands[:i], s.Commands[i+1:]...)
+			s.Commands = slices.Delete(s.Commands, i, i+1)
 			found = true
 			break
 		}

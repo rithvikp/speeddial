@@ -4,21 +4,16 @@ import (
 	"bufio"
 	"fmt"
 	"os"
-	"strings"
 
 	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
-)
-
-const (
-	addPrintCommandEnvVar = "SPEEDDIAL_ADD_PRINT_COMMAND"
 )
 
 var (
 	addCmd = &cobra.Command{
 		Use:                "add",
 		Short:              "Add a new command to speeddial",
-		Args:               cobra.MinimumNArgs(1),
+		Args:               cobra.ExactArgs(1),
 		DisableFlagParsing: true,
 
 		Run: runAdd,
@@ -29,16 +24,15 @@ func runAdd(cmd *cobra.Command, args []string) {
 	c := setup()
 	defer dump(c)
 
-	// TODO: Validate args accordingly
-	command := strings.Join(args, " ")
+	command := args[0]
 
 	printCommand := os.Getenv(addPrintCommandEnvVar) != ""
 	if printCommand {
-		fmt.Printf("Adding command: %s\n", pterm.Bold.Sprint(command))
+		fmt.Fprintf(os.Stderr, "Adding command: %s\n", pterm.Bold.Sprint(command))
 	}
 
 	scanner := bufio.NewScanner(os.Stdin)
-	fmt.Print("Please input a description if desired: ")
+	fmt.Fprint(os.Stderr, "Please input a description if desired: ")
 	scanner.Scan()
 	desc := scanner.Text()
 

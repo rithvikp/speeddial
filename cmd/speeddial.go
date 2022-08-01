@@ -17,19 +17,26 @@ var (
 	rootCmd = &cobra.Command{
 		Use:   "speeddial",
 		Short: "Shell commands at your fingertips",
+		Long:  `After starting this command, type and use the arrow keys to search for the entry you desire. Press "enter" to select the entry: it will be loaded into the subsequent terminal prompt.`,
 
 		Run: run,
 	}
 )
 
 func init() {
-	rootCmd.AddCommand(addCmd)
-	rootCmd.AddCommand(initCmd)
-	rootCmd.AddCommand(rmCmd)
+	rootCmd.AddCommand(addCmd, initCmd, rmCmd)
 }
+
+// Text output is printed to stderr instead of stdout as what is sent to stderr is printed right
+// away whereas what is sent to stdout is buffered and then shown in the next prompt by the shell
+// wrapper.
 
 // Execute starts the program.
 func Execute() error {
+	// If not running init, the shell wrapper should be used
+	if os.Getenv(initializedEnvVar) == "" && (len(os.Args) < 2 || os.Args[1] != "init") {
+		fmt.Fprintln(os.Stderr, "Please use the shell wrapper to call speeddial. Check `speeddial init --help` for more information")
+	}
 	return rootCmd.Execute()
 }
 
@@ -57,7 +64,7 @@ func search(c *state.Container) *state.Command {
 	if err == term.ErrUserQuit {
 		os.Exit(0)
 	} else if err != nil {
-		fmt.Fprintf(os.Stderr, "Unable to select a new command: %v", err)
+		fmt.Fprintf(os.Stderr, "Unable to select a new command: %v\n", err)
 		os.Exit(1)
 	}
 

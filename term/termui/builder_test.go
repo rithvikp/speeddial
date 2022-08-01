@@ -4,7 +4,7 @@ import (
 	"testing"
 )
 
-func TestNumLinesInWidth(t *testing.T) {
+func TestNumNewLinesInWidth(t *testing.T) {
 	tests := []struct {
 		msg   string
 		input string
