@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/pterm/pterm"
+	"github.com/rithvikp/speeddial/term/termui"
 	"golang.org/x/exp/constraints"
 )
 
@@ -81,15 +82,8 @@ func List[Payload any](list QueryableList[Payload], maxToDisplay int, vimNavigat
 	displayOffset := 0
 	selected := 0
 	normalMode := false
-	output := ""
-
-	moveCursorToStart := func() string {
-		lines := max(0, t.NumLines(output)-1)
-		return "\r" + vt100CursorUp(lines)
-	}
-	moveCursorToEndOfQuery := func(queryLen int) string {
-		return fmt.Sprint(moveCursorToStart(), vt100CursorRight(len("> ")+queryLen))
-	}
+	builder := &termui.Builder{}
+	builder.SaveCursor()
 
 	listNavDown := func() {
 		if selected < len(items)-1 {
@@ -112,23 +106,24 @@ func List[Payload any](list QueryableList[Payload], maxToDisplay int, vimNavigat
 	// and relevant escape codes in order to have a smooth UI). Then, wait for a keystroke,
 	// handle it appropriately, and repeat the entire process.
 	for {
-		// TODO: Refactor the terminal wrangling code to improve readability
-		output = "\r"
+		builder.MoveCursor(termui.CursorLineStart())
 
 		// Print the updated interface
-		output += fmt.Sprint("> ", query, vt100ClearEOL(), "\r\n")
+		builder.WriteString(fmt.Sprint("> ", query)).ClearToLineEnd().NextLine()
 
 		tbl, err := generateList(t, items, displayOffset, maxToDisplay, selected)
 		if err != nil {
 			return emptyPayload, err
 		}
-		output += tbl
 
-		// Wipe the rest of the screen downwards to remove old, trailing text
-		output += vt100ClearEOS()
-		output += moveCursorToEndOfQuery(len(query))
+		// Write the table and then wipe the rest of the screen downwards to remove old,
+		// trailing text
+		builder.WriteStringAndReformat(tbl).ClearToScreenEnd()
 
-		fmt.Fprint(os.Stderr, output)
+		// Move the cursor back to the end of the query
+		builder.ResetCursor().MoveCursor(termui.CursorRight(len("> ") + len(query)))
+
+		fmt.Fprint(os.Stderr, builder.Commit())
 
 		// Handle keyboard events accordingly
 		e, err := t.GetKeyboardEvent()
@@ -159,13 +154,16 @@ func List[Payload any](list QueryableList[Payload], maxToDisplay int, vimNavigat
 				return emptyPayload, errors.New("unable to select an item")
 			}
 			// Wipe any added content added by this function
-			fmt.Fprint(os.Stderr, moveCursorToStart(), vt100ClearEOS())
+			builder.ResetCursor().ClearToScreenEnd()
+			fmt.Fprint(os.Stderr, builder.Commit())
 
 			return items[selected].Raw, nil
 
 		case KeyCtrlC:
 			// Wipe any added content added by this function
-			fmt.Fprint(os.Stderr, "\r", vt100ClearEOS())
+			builder.ResetCursor().ClearToScreenEnd()
+			fmt.Fprint(os.Stderr, builder.Commit())
+
 			return emptyPayload, ErrUserQuit
 
 		case KeyDelete:
@@ -234,9 +232,6 @@ func generateList[T any](t *Tty, items []ListItem[T], displayOffset, maxToDispla
 	if err != nil {
 		return "", fmt.Errorf("unable to print the list: %v", err)
 	}
-
-	// Since the terminal is in raw mode, carriage returns are necessary, so add them in
-	tbl = strings.ReplaceAll(tbl, "\n", vt100ClearEOL()+"\r\n")
 
 	return tbl, nil
 }
