@@ -21,10 +21,13 @@ var (
 
 		Run: run,
 	}
+
+	rootRegexArg bool
 )
 
 func init() {
 	rootCmd.AddCommand(addCmd, initCmd, rmCmd)
+	rootCmd.Flags().BoolVarP(&rootRegexArg, "regex", "r", false, "Use regex instead of fuzzy search")
 }
 
 // Text output is printed to stderr instead of stdout as what is sent to stderr is printed right
@@ -33,7 +36,7 @@ func init() {
 
 // Execute starts the program.
 func Execute() error {
-	// If not running init, the shell wrapper should be used
+	// If not running the init command, the shell wrapper should be used
 	if os.Getenv(initializedEnvVar) == "" && (len(os.Args) < 2 || os.Args[1] != "init") {
 		fmt.Fprintln(os.Stderr, "Please use the shell wrapper to call speeddial. Check `speeddial init --help` for more information")
 	}
@@ -56,11 +59,12 @@ func dump(c *state.Container) {
 
 func run(cmd *cobra.Command, args []string) {
 	c := setup()
-	fmt.Println(search(c).Invocation)
+	fmt.Println(search(c, rootRegexArg).Invocation)
 }
 
-func search(c *state.Container) *state.Command {
-	command, err := term.List(term.QueryableList[*state.Command](c.Searcher()), maxDisplayedSearchResults, true)
+func search(c *state.Container, useRegex bool) *state.Command {
+	searcher := term.QueryableList[*state.Command](c.Searcher(useRegex))
+	command, err := term.List(searcher, maxDisplayedSearchResults, true)
 	if err == term.ErrUserQuit {
 		os.Exit(0)
 	} else if err != nil {

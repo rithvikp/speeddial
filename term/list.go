@@ -39,10 +39,15 @@ type ListItem[T any] struct {
 	Raw           T
 }
 
+// Canned errors that can be returned by queryable lists to trigger certain actions by the list
+var (
+	ErrQueryableListInvalidQuery = errors.New("invalid query")
+)
+
 // QueryableList abstracts a searchable corpus of data. The Search method will be repeatedly called as
 // the query changes.
 type QueryableList[T any] interface {
-	Search(query string) []ListItem[T]
+	Search(query string) ([]ListItem[T], error)
 }
 
 func min[T constraints.Ordered](a, b T) T {
@@ -78,10 +83,16 @@ func List[Payload any](list QueryableList[Payload], maxToDisplay int, vimNavigat
 	}
 
 	query := ""
-	items := list.Search(query)
+	items, err := list.Search(query)
+	if err != nil && err != ErrQueryableListInvalidQuery {
+		return emptyPayload, fmt.Errorf("unable to handle search query: %v", err)
+	}
+
 	displayOffset := 0
 	selected := 0
 	normalMode := false
+	invalidQuery := false
+
 	builder := &termui.Builder{}
 	builder.SaveCursor()
 
@@ -109,7 +120,11 @@ func List[Payload any](list QueryableList[Payload], maxToDisplay int, vimNavigat
 		builder.MoveCursor(termui.CursorLineStart())
 
 		// Print the updated interface
-		builder.WriteString(fmt.Sprint("> ", query)).ClearToLineEnd().NextLine()
+		formattedQuery := query
+		if invalidQuery {
+			formattedQuery = pterm.BgRed.Sprint(formattedQuery)
+		}
+		builder.WriteString(fmt.Sprint("> ", formattedQuery)).ClearToLineEnd().NextLine()
 
 		tbl, err := generateList(t, items, displayOffset, maxToDisplay, selected)
 		if err != nil {
@@ -131,13 +146,13 @@ func List[Payload any](list QueryableList[Payload], maxToDisplay int, vimNavigat
 			return emptyPayload, fmt.Errorf("unable to process user keystroke: %v", err)
 		}
 
+		rerunQuery := false
+
 		switch e.key {
 		case KeyChar:
 			if !normalMode {
 				query += string(e.char)
-				items = list.Search(query)
-				selected = max(min(selected, len(items)-1), 0)
-				displayOffset = max(min(displayOffset, len(items)-1-maxToDisplay), 0)
+				rerunQuery = true
 				break
 			}
 
@@ -153,14 +168,14 @@ func List[Payload any](list QueryableList[Payload], maxToDisplay int, vimNavigat
 			if selected < 0 || selected >= len(items) {
 				return emptyPayload, errors.New("unable to select an item")
 			}
-			// Wipe any added content added by this function
+			// Wipe any content added by this function
 			builder.ResetCursor().ClearToScreenEnd()
 			fmt.Fprint(os.Stderr, builder.Commit())
 
 			return items[selected].Raw, nil
 
 		case KeyCtrlC:
-			// Wipe any added content added by this function
+			// Wipe any content added by this function
 			builder.ResetCursor().ClearToScreenEnd()
 			fmt.Fprint(os.Stderr, builder.Commit())
 
@@ -169,9 +184,7 @@ func List[Payload any](list QueryableList[Payload], maxToDisplay int, vimNavigat
 		case KeyDelete:
 			if len(query) > 0 {
 				query = query[:len(query)-1]
-				items = list.Search(query)
-				selected = max(min(selected, len(items)-1), 0)
-				displayOffset = max(min(displayOffset, len(items)-1-maxToDisplay), 0)
+				rerunQuery = true
 			}
 
 		case KeyUp:
@@ -186,6 +199,23 @@ func List[Payload any](list QueryableList[Payload], maxToDisplay int, vimNavigat
 			}
 
 			normalMode = true
+		}
+
+		if rerunQuery {
+			invalidQuery = false
+			newItems, err := list.Search(query)
+			if err == ErrQueryableListInvalidQuery {
+				invalidQuery = true
+			} else if err != nil {
+				// Wipe any content added by this function
+				builder.ResetCursor().ClearToScreenEnd()
+				fmt.Fprint(os.Stderr, builder.Commit())
+				return emptyPayload, fmt.Errorf("unable to handle search query: %v", err)
+			} else {
+				items = newItems
+				selected = max(min(selected, len(items)-1), 0)
+				displayOffset = max(min(displayOffset, len(items)-1-maxToDisplay), 0)
+			}
 		}
 	}
 }

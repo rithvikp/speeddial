@@ -1,20 +1,22 @@
 package state
 
 import (
+	"regexp"
 	"strings"
 
 	"github.com/rithvikp/speeddial/term"
 )
 
 // Searcher provides a searchable view over all commands. It conforms to the
-// term.QueryableList interface
+// term.QueryableList interface.
 type Searcher struct {
-	c *Container
+	c     *Container
+	regex bool
 }
 
 // Searcher returns a Searcher over the container.
-func (c *Container) Searcher() *Searcher {
-	return &Searcher{c: c}
+func (c *Container) Searcher(useRegex bool) *Searcher {
+	return &Searcher{c: c, regex: useRegex}
 }
 
 type query struct {
@@ -29,18 +31,27 @@ type matchedText struct {
 }
 
 type matchedCommand struct {
-	c           *Command
-	invMatches  []matchedText
+	c *Command
+	// Matches on the invocation string
+	invMatches []matchedText
+	// Matches on the description string
 	descMatches []matchedText
 }
 
+type searchMethod func(q *query, s *state) ([]matchedCommand, error)
+
 // Search searches all state in this container based on the given query.
-func (s *Searcher) Search(rawQuery string) []term.ListItem[*Command] {
+func (s *Searcher) Search(rawQuery string) ([]term.ListItem[*Command], error) {
 	var matched []term.ListItem[*Command]
 	q := parseQuery(rawQuery)
 
-	for _, s := range s.c.states {
-		for _, m := range s.search(q) {
+	for _, st := range s.c.states {
+		matches, err := s.dispatch()(q, st)
+		if err != nil {
+			return nil, err
+		}
+
+		for _, m := range matches {
 			inv := term.FormattedContent{
 				Content: m.c.Invocation,
 			}
@@ -72,7 +83,37 @@ func (s *Searcher) Search(rawQuery string) []term.ListItem[*Command] {
 		}
 	}
 
-	return matched
+	return matched, nil
+}
+
+func (s *Searcher) dispatch() searchMethod {
+	if s.regex {
+		return regexSearch
+	}
+	return search
+}
+
+func regexSearch(q *query, s *state) ([]matchedCommand, error) {
+	expr, err := regexp.Compile(q.raw)
+	if err != nil {
+		return nil, term.ErrQueryableListInvalidQuery
+	}
+
+	var matched []matchedCommand
+	for _, c := range s.Commands {
+		c.state = s
+		match := expr.FindStringIndex(c.Invocation)
+		if match == nil {
+			continue
+		}
+
+		matched = append(matched, matchedCommand{
+			c:          c,
+			invMatches: []matchedText{{start: match[0], length: match[1] - match[0]}},
+		})
+	}
+
+	return matched, nil
 }
 
 func parseQuery(raw string) *query {
@@ -84,9 +125,9 @@ func parseQuery(raw string) *query {
 	return &q
 }
 
-// search searches the commands in this state to find any that match to the query. Currently,
+// search searches the commands in the given state to find any that match to the query. Currently,
 // matching is purely based on "contains" operations.
-func (s *state) search(q *query) []matchedCommand {
+func search(q *query, s *state) ([]matchedCommand, error) {
 	var matched []matchedCommand
 
 	for _, c := range s.Commands {
@@ -107,7 +148,7 @@ func (s *state) search(q *query) []matchedCommand {
 		}
 	}
 
-	return matched
+	return matched, nil
 }
 
 // match takes a given query and determines whether it exists in src as a sequence of

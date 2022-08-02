@@ -11,10 +11,9 @@ import (
 
 var (
 	addCmd = &cobra.Command{
-		Use:                "add",
-		Short:              "Add a new command to speeddial",
-		Args:               cobra.ExactArgs(1),
-		DisableFlagParsing: true,
+		Use:   "add",
+		Short: "Add a new command to speeddial",
+		Args:  cobra.ExactArgs(1),
 
 		Run: runAdd,
 	}

@@ -16,13 +16,19 @@ var (
 
 		Run: runRm,
 	}
+
+	rmRegexArg bool
 )
+
+func init() {
+	rmCmd.Flags().BoolVarP(&rmRegexArg, "regex", "r", false, "Use regex instead of fuzzy search")
+}
 
 func runRm(cmd *cobra.Command, args []string) {
 	c := setup()
 	defer dump(c)
 
-	command := search(c)
+	command := search(c, rmRegexArg)
 
 	confirm, err := term.Confirmation(fmt.Sprintf("Are you sure you want to delete command `%s`?", command.Invocation), true)
 	if err == term.ErrUserQuit {
