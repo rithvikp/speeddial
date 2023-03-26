@@ -77,10 +77,13 @@ func Init() (*Container, error) {
 	if err != nil {
 		return nil, fmt.Errorf("unable to fetch your home directory: %v", err)
 	}
+	return initialize(filepath.Join(u.HomeDir, primaryStatePath))
+}
 
+func initialize(statePath string) (*Container, error) {
 	var c Container
 
-	err = c.Load(filepath.Join(u.HomeDir, primaryStatePath))
+	err := c.Load(statePath)
 	if err != nil {
 		return nil, fmt.Errorf("unable to load your primary speeddial state: %v", err)
 	}
@@ -89,6 +92,14 @@ func Init() (*Container, error) {
 	c.states[0].primary = true
 
 	return &c, nil
+}
+
+func (c *Container) List() []*Command {
+	var commands []*Command
+	for _, s := range c.states {
+		commands = append(commands, s.Commands...)
+	}
+	return commands
 }
 
 // Load loads the speeddial state at the given path into the provided container, creating a new one
